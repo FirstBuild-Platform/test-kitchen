@@ -93,6 +93,14 @@ module Kitchen
         :type => :boolean
     end
 
+    # Sets the test_base_path method_options
+    # @api private
+    def self.test_base_path
+      method_option :test_base_path,
+        :aliases => "-t",
+        :desc => "Set the base path of the tests"
+    end
+
     desc "list [INSTANCE|REGEXP|all]", "Lists one or more instances"
     method_option :bare,
       :aliases => "-b",
@@ -165,6 +173,7 @@ module Kitchen
           [Future DEPRECATION, use --concurrency]
           Run a #{action} against all matching instances concurrently.
         DESC
+      test_base_path
       log_options
       define_method(action) do |*args|
         update_config!
@@ -210,6 +219,7 @@ module Kitchen
       :type => :boolean,
       :default => false,
       :desc => "Invoke init command if .kitchen.yml is missing"
+    test_base_path
     log_options
     def test(*args)
       update_config!
@@ -287,6 +297,9 @@ module Kitchen
         guarenteed that every result is a driver, but chances are good most
         relevant drivers will be returned.
       D
+      method_option :chef_config_path,
+        :default => nil,
+        :desc => "Path to chef config file containing proxy configuration to use"
       def discover
         perform("discover", "driver_discover", args)
       end
@@ -331,21 +344,49 @@ module Kitchen
     #
     # @api private
     def update_config!
-      if options[:log_level]
-        level = options[:log_level].downcase.to_sym
-        @config.log_level = level
-      end
+      @config.log_level = log_level if log_level
+
       unless options[:log_overwrite].nil?
         @config.log_overwrite = options[:log_overwrite]
       end
 
+      if options[:test_base_path]
+        # ensure we have an absolute path
+        @config.test_base_path = File.absolute_path(options[:test_base_path])
+      end
+
       # Now that we have required configs, lets create our file logger
       Kitchen.logger = Kitchen.default_file_logger(
-        level,
+        log_level,
         options[:log_overwrite]
       )
 
       update_parallel!
+    end
+
+    # Validate the log level from the config / CLI options, defaulting
+    # to :info if the supplied level is empty or invalid
+    #
+    # @api private
+    def log_level
+      return unless options[:log_level]
+      return @log_level if @log_level
+
+      level = options[:log_level].downcase.to_sym
+      unless valid_log_level?(level)
+        level = :info
+        banner "WARNING - invalid log level specified: " \
+          "\"#{options[:log_level]}\" - reverting to :info log level."
+      end
+
+      @log_level = level
+    end
+
+    # Check to whether a provided log level is valid
+    #
+    # @api private
+    def valid_log_level?(level)
+      !Util.to_logger_level(level).nil?
     end
 
     # Set parallel concurrency options for Thor

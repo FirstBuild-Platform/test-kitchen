@@ -20,6 +20,7 @@ require "kitchen"
 
 require "net/ssh"
 require "net/scp"
+require "timeout"
 
 module Kitchen
 
@@ -82,6 +83,15 @@ module Kitchen
           reuse_connection(&block)
         else
           create_new_connection(options, &block)
+        end
+      end
+
+      # (see Base#cleanup!)
+      def cleanup!
+        if @connection
+          logger.debug("[SSH] shutting previous connection #{@connection}")
+          @connection.close
+          @connection = @connection_options = nil
         end
       end
 
@@ -165,7 +175,8 @@ module Kitchen
         RESCUE_EXCEPTIONS_ON_ESTABLISH = [
           Errno::EACCES, Errno::EADDRINUSE, Errno::ECONNREFUSED, Errno::ETIMEDOUT,
           Errno::ECONNRESET, Errno::ENETUNREACH, Errno::EHOSTUNREACH,
-          Net::SSH::Disconnect, Net::SSH::AuthenticationFailed, Timeout::Error
+          Net::SSH::Disconnect, Net::SSH::AuthenticationFailed, Net::SSH::ConnectionTimeout,
+          Timeout::Error
         ].freeze
 
         # @return [Integer] how many times to retry when failing to execute
@@ -334,11 +345,7 @@ module Kitchen
       # @return [Ssh::Connection] an SSH Connection instance
       # @api private
       def create_new_connection(options, &block)
-        if @connection
-          logger.debug("[SSH] shutting previous connection #{@connection}")
-          @connection.close
-        end
-
+        cleanup!
         @connection_options = options
         @connection = Kitchen::Transport::Ssh::Connection.new(options, &block)
       end

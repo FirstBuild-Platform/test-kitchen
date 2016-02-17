@@ -29,8 +29,8 @@ module Kitchen
       include Logging
 
       default_config :http_proxy, nil
-
       default_config :https_proxy, nil
+      default_config :ftp_proxy, nil
 
       default_config :root_path do |provisioner|
         provisioner.windows_os? ? "$env:TEMP\\kitchen" : "/tmp/kitchen"
@@ -205,10 +205,18 @@ module Kitchen
       # Conditionally prefixes a command with a sudo command.
       #
       # @param command [String] command to be prefixed
-      # @return [String] the command, conditionaly prefixed with sudo
+      # @return [String] the command, conditionally prefixed with sudo
       # @api private
       def sudo(script)
-        config[:sudo] ? "#{config[:sudo_command]} #{script}" : script
+        "#{sudo_command} #{script}".lstrip
+      end
+
+      # Returns the sudo command to use or empty string if sudo is not configured
+      #
+      # @return [String] the sudo command if sudo config is true
+      # @api private
+      def sudo_command
+        config[:sudo] ? config[:sudo_command].to_s : ""
       end
 
       # Conditionally prefixes a command with a command prefix.

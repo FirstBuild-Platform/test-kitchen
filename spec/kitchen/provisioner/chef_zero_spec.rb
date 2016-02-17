@@ -588,8 +588,8 @@ describe Kitchen::Provisioner::ChefZero do
           " --config #{custom_base}client.rb", :partial_line)
       end
 
-      it "sets log level flag on chef-client to auto by default" do
-        cmd.must_match regexify(" --log_level auto", :partial_line)
+      it "sets log level flag on chef-client to warn by default" do
+        cmd.must_match regexify(" --log_level warn", :partial_line)
       end
 
       it "set log level flag for custom level" do
@@ -685,6 +685,19 @@ describe Kitchen::Provisioner::ChefZero do
           config[:chef_zero_port] = nil
 
           cmd.wont_match regexify(" --chef-zero-port ", :partial_line)
+        end
+
+        it "sets profile-ruby flag when config element is set" do
+          config[:profile_ruby] = true
+
+          cmd.must_match regexify(
+            " --profile-ruby", :partial_line)
+        end
+
+        it "does not set profile-ruby flag when config element is falsey" do
+          config[:profile_ruby] = false
+
+          cmd.wont_match regexify(" --profile-ruby", :partial_line)
         end
       end
       # rubocop:enable Metrics/MethodLength, Metrics/AbcSize

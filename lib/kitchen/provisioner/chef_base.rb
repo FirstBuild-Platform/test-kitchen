@@ -26,6 +26,12 @@ require "kitchen/provisioner/chef/common_sandbox"
 require "kitchen/provisioner/chef/librarian"
 require "kitchen/util"
 require "mixlib/install"
+begin
+  require "chef-config/config"
+  require "chef-config/workstation_config_loader"
+rescue LoadError # rubocop:disable Lint/HandleExceptions
+  # This space left intentionally blank.
+end
 
 module Kitchen
 
@@ -41,7 +47,9 @@ module Kitchen
       default_config :chef_omnibus_install_options, nil
       default_config :run_list, []
       default_config :attributes, {}
+      default_config :config_path, nil
       default_config :log_file, nil
+      default_config :profile_ruby, false
       default_config :cookbook_files_glob, %w[
         README.* metadata.{json,rb}
         attributes/**/* definitions/**/* files/**/* libraries/**/*
@@ -83,6 +91,23 @@ module Kitchen
       end
       expand_path_for :encrypted_data_bag_secret_key_path
 
+      # Reads the local Chef::Config object (if present).  We do this because
+      # we want to start bring Chef config and ChefDK tool config closer
+      # together.  For example, we want to configure proxy settings in 1
+      # location instead of 3 configuration files.
+      #
+      # @param config [Hash] initial provided configuration
+      def initialize(config = {})
+        super(config)
+
+        if defined?(ChefConfig::WorkstationConfigLoader)
+          ChefConfig::WorkstationConfigLoader.new(config[:config_path]).load
+        end
+        # This exports any proxy config present in the Chef config to
+        # appropriate environment variables, which Test Kitchen respects
+        ChefConfig::Config.export_proxies if defined?(ChefConfig::Config.export_proxies)
+      end
+
       # (see Base#create_sandbox)
       def create_sandbox
         super
@@ -114,7 +139,7 @@ module Kitchen
         # Passing "true" to mixlib-install currently breaks the windows metadata_url
         # TODO: remove this line once https://github.com/chef/mixlib-install/pull/22
         # is accepted and released
-        version = "" if version == "true"
+        version = "" if version == "true" && powershell_shell?
 
         installer = Mixlib::Install.new(version, powershell_shell?, install_options)
         config[:chef_omnibus_root] = installer.root
@@ -130,7 +155,8 @@ module Kitchen
         {
           :omnibus_url => config[:chef_omnibus_url],
           :project => project.nil? ? nil : project[1],
-          :install_flags => config[:chef_omnibus_install_options]
+          :install_flags => config[:chef_omnibus_install_options],
+          :sudo_command => sudo_command
         }.tap do |opts|
           opts[:root] = config[:chef_omnibus_root] if config.key? :chef_omnibus_root
           opts[:http_proxy] = config[:http_proxy] if config.key? :http_proxy

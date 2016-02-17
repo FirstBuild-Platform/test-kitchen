@@ -131,6 +131,10 @@ describe Kitchen::Provisioner::Base do
     it ":http_proxys defaults to nil" do
       provisioner[:https_proxy].must_equal nil
     end
+
+    it ":ftp_proxy defaults to nil" do
+      provisioner[:ftp_proxy].must_equal nil
+    end
   end
 
   describe "#call" do
@@ -322,6 +326,39 @@ describe Kitchen::Provisioner::Base do
         config[:sudo_command] = "blueto -Ohai"
 
         provisioner.send(:sudo, "wakka").must_equal("wakka")
+      end
+    end
+  end
+
+  describe "#sudo_command" do
+
+    describe "with :sudo set" do
+
+      before { config[:sudo] = true }
+
+      it "returns the default sudo_command" do
+        provisioner.send(:sudo_command).must_equal("sudo -E")
+      end
+
+      it "returns the custom sudo_command" do
+        config[:sudo_command] = "mysudo"
+
+        provisioner.send(:sudo_command).must_equal("mysudo")
+      end
+    end
+
+    describe "with :sudo falsey" do
+
+      before { config[:sudo] = false }
+
+      it "returns empty string for default sudo_command" do
+        provisioner.send(:sudo_command).must_equal("")
+      end
+
+      it "returns empty string for custom sudo_command" do
+        config[:sudo_command] = "mysudo"
+
+        provisioner.send(:sudo_command).must_equal("")
       end
     end
   end
